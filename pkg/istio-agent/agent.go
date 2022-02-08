@@ -403,13 +403,35 @@ func (a *Agent) Run(ctx context.Context) (func(), error) {
 		return nil, fmt.Errorf("failed to start local DNS server: %v", err)
 	}
 
-	a.secretCache, err = a.newSecretManager()
-	if err != nil {
-		return nil, fmt.Errorf("failed to start workload secret manager %v", err)
-	}
+	sdsSocketExists := socketFileExists(constants.WorkloadIdentitySocketPath)
+	if sdsSocketExists {
+		log.Info("master branch: SDS socket detected, don't start SDS Server")
+	} else {
+		log.Info("master branch: SDS socket not detected, starting owned SDS Server")
 
-	a.sdsServer = sds.NewServer(a.secOpts, a.secretCache)
-	a.secretCache.SetUpdateCallback(a.sdsServer.UpdateCallback)
+		rootCertExists := fileExists(constants.WorkloadIdentityRootCertPath)
+		certChainExists := fileExists(constants.WorkloadIdentityCertChainPath)
+		keyExists := fileExists(constants.WorkloadIdentityKeyPath)
+		if rootCertExists && certChainExists && keyExists {
+			log.Info("workload identity cert files detected, creating secret manager without caClient")
+			a.secOpts.RootCertFilePath = constants.WorkloadIdentityRootCertPath
+			a.secOpts.CertChainFilePath = constants.WorkloadIdentityCertChainPath
+			a.secOpts.KeyFilePath = constants.WorkloadIdentityKeyPath
+
+			a.secretCache, err = cache.NewSecretManagerClient(nil, a.secOpts)
+			if err != nil {
+				return nil, fmt.Errorf("failed to start workload secret manager %v", err)
+			}
+		} else {
+			log.Info("workload identity cert files not found, create secret manager with caClient")
+			a.secretCache, err = a.newSecretManager()
+			if err != nil {
+				return nil, fmt.Errorf("failed to start workload secret manager %v", err)
+			}
+		}
+		a.sdsServer = sds.NewServer(a.secOpts, a.secretCache)
+		a.secretCache.SetUpdateCallback(a.sdsServer.UpdateCallback)
+	}
 
 	a.xdsProxy, err = initXdsProxy(a)
 	if err != nil {
@@ -622,6 +644,13 @@ func (a *Agent) GetKeyCertsForXDS() (string, string) {
 
 func fileExists(path string) bool {
 	if fi, err := os.Stat(path); err == nil && fi.Mode().IsRegular() {
+		return true
+	}
+	return false
+}
+
+func socketFileExists(path string) bool {
+	if fi, err := os.Stat(path); err == nil && !fi.Mode().IsRegular() {
 		return true
 	}
 	return false

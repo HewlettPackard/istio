@@ -117,9 +117,6 @@ const (
 // TODO: ProxyConfig should have most of those, and be passed to all components
 // (as source of truth)
 type Options struct {
-	// WorkloadUDSPath is the unix domain socket through which SDS server communicates with workload proxies.
-	WorkloadUDSPath string
-
 	// CAEndpoint is the CA endpoint to which node agent sends CSR request.
 	CAEndpoint string
 
