@@ -349,7 +349,7 @@
               "endpoint": {
                 "address":{
                   "pipe": {
-                    "path": "/tmp/bootstrap/authsds/SDS"
+                    "path": "./var/run/secrets/workload-identity/socket"
                   }
                 }
               }

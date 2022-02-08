@@ -7,7 +7,7 @@ metadata:
     prometheus.io/path: /stats/prometheus
     prometheus.io/port: "15020"
     prometheus.io/scrape: "true"
-    sidecar.istio.io/status: '{"initContainers":["istio-init"],"containers":["istio-proxy"],"volumes":["istio-envoy","istio-data","istio-podinfo","istio-token","istiod-ca-cert"],"imagePullSecrets":null,"revision":"default"}'
+    sidecar.istio.io/status: '{"initContainers":["istio-init"],"containers":["istio-proxy"],"volumes":["workload-identity","istio-envoy","istio-data","istio-podinfo","istio-token","istiod-ca-cert"],"imagePullSecrets":null,"revision":"default"}'
   creationTimestamp: null
   labels:
     security.istio.io/tlsMode: istio
@@ -113,6 +113,8 @@ spec:
       runAsNonRoot: true
       runAsUser: 1337
     volumeMounts:
+    - mountPath: /var/run/secrets/workload-identity
+      name: workload-identity
     - mountPath: /var/run/secrets/istio
       name: istiod-ca-cert
     - mountPath: /var/lib/istio/data
@@ -167,6 +169,7 @@ spec:
   securityContext:
     fsGroup: 1337
   volumes:
+  - name: workload-identity
   - emptyDir:
       medium: Memory
     name: istio-envoy
