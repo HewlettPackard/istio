@@ -42,6 +42,21 @@ const (
 	// ConfigPathDir config directory for storing envoy json config files.
 	ConfigPathDir = "./etc/istio/proxy"
 
+	// WorkloadIdentityPath is the path to the folder where workload identity materials and the SDS socket are placed.
+	WorkloadIdentityPath = "./var/run/secrets/workload-identity/"
+
+	// WorkloadIdentitySocketPath is the path to the Unix Domain Socket for SDS.
+	WorkloadIdentitySocketPath = WorkloadIdentityPath + "socket"
+
+	// WorkloadIdentityCertChainPath is path to a workload certificate chain file.
+	WorkloadIdentityCertChainPath = WorkloadIdentityPath + "cert-chain.pem"
+
+	// WorkloadIdentityKeyPath is path to a workload key file.
+	WorkloadIdentityKeyPath = WorkloadIdentityPath + "key.pem"
+
+	// WorkloadIdentityRootCertPath is path to a workload root certificate file.
+	WorkloadIdentityRootCertPath = WorkloadIdentityPath + "root-cert.pem"
+
 	// IstioDataDir is the directory to store binary data such as envoy core dump, profile, and downloaded Wasm modules.
 	IstioDataDir = "/var/lib/istio/data"
 

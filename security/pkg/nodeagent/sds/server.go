@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc"
 
 	"istio.io/istio/pilot/pkg/model"
+	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/schema/gvk"
 	"istio.io/istio/pkg/security"
 	"istio.io/istio/pkg/uds"
@@ -46,8 +47,8 @@ type Server struct {
 func NewServer(options *security.Options, workloadSecretCache security.SecretManager) *Server {
 	s := &Server{stopped: atomic.NewBool(false)}
 	s.workloadSds = newSDSService(workloadSecretCache, options)
-	s.initWorkloadSdsService(options)
-	sdsServiceLog.Infof("SDS server for workload certificates started, listening on %q", options.WorkloadUDSPath)
+	s.initWorkloadSdsService()
+	sdsServiceLog.Infof("SDS server for workload certificates started, listening on %q", constants.WorkloadIdentitySocketPath)
 	return s
 }
 
@@ -81,12 +82,12 @@ func (s *Server) Stop() {
 	}
 }
 
-func (s *Server) initWorkloadSdsService(options *security.Options) {
+func (s *Server) initWorkloadSdsService() {
 	s.grpcWorkloadServer = grpc.NewServer(s.grpcServerOptions()...)
 	s.workloadSds.register(s.grpcWorkloadServer)
 
 	var err error
-	s.grpcWorkloadListener, err = uds.NewListener(options.WorkloadUDSPath)
+	s.grpcWorkloadListener, err = uds.NewListener(constants.WorkloadIdentitySocketPath)
 	if err != nil {
 		sdsServiceLog.Errorf("Failed to set up UDS path: %v", err)
 	}
@@ -102,7 +103,7 @@ func (s *Server) initWorkloadSdsService(options *security.Options) {
 			serverOk := true
 			setUpUdsOK := true
 			if s.grpcWorkloadListener == nil {
-				if s.grpcWorkloadListener, err = uds.NewListener(options.WorkloadUDSPath); err != nil {
+				if s.grpcWorkloadListener, err = uds.NewListener(constants.WorkloadIdentitySocketPath); err != nil {
 					sdsServiceLog.Errorf("SDS grpc server for workload proxies failed to set up UDS: %v", err)
 					setUpUdsOK = false
 				}

@@ -17,7 +17,6 @@ package options
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	meshconfig "istio.io/api/mesh/v1alpha1"
@@ -40,7 +39,6 @@ func NewSecurityOptions(proxyConfig *meshconfig.ProxyConfig, stsPort int, tokenM
 		PilotCertProvider:              features.PilotCertProvider,
 		OutputKeyCertToDir:             outputKeyCertToDir,
 		ProvCert:                       provCert,
-		WorkloadUDSPath:                filepath.Join(proxyConfig.ConfigPath, "SDS"),
 		ClusterID:                      clusterIDVar.Get(),
 		FileMountedCerts:               fileMountedCertsEnv,
 		WorkloadNamespace:              PodNamespaceVar.Get(),
