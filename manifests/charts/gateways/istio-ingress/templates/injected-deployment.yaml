@@ -102,6 +102,8 @@ spec:
             value: {{ $val | quote }}
           {{- end }}
           volumeMounts:
+          - name: workload-identity
+            mountPath: /var/run/secrets/workload-identity
           {{- range $gateway.secretVolumes }}
           - name: {{ .name }}
             mountPath: {{ .mountPath | quote }}
@@ -118,6 +120,8 @@ spec:
 {{ toYaml $gateway.additionalContainers | indent 8 }}
 {{- end }}
       volumes:
+      - emptyDir:
+        name: workload-identity
       {{- range $gateway.secretVolumes }}
       - name: {{ .name }}
         secret:

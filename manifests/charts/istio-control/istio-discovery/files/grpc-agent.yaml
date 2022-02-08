@@ -177,6 +177,8 @@ spec:
     {{- end }}
   {{- end }}
     volumeMounts:
+    - name: workload-identity
+      mountPath: /var/run/secrets/workload-identity
     {{- if eq .Values.global.pilotCertProvider "istiod" }}
     - mountPath: /var/run/secrets/istio
       name: istiod-ca-cert
@@ -199,6 +201,8 @@ spec:
     {{ end }}
     {{- end }}
   volumes:
+  - emptyDir:
+    name: workload-identity
   # UDS channel between istioagent and gRPC client for XDS/SDS
   - emptyDir:
       medium: Memory
