@@ -413,7 +413,7 @@ func (a *Agent) Run(ctx context.Context) (func(), error) {
 		certChainExists := fileExists(constants.WorkloadIdentityCertChainPath)
 		keyExists := fileExists(constants.WorkloadIdentityKeyPath)
 		if rootCertExists && certChainExists && keyExists {
-			log.Info("workload identity cert files detected, creating secret manager without caClient")
+			log.Info("workload identity cert files detected, creating secret manager without the caClient")
 			a.secOpts.RootCertFilePath = constants.WorkloadIdentityRootCertPath
 			a.secOpts.CertChainFilePath = constants.WorkloadIdentityCertChainPath
 			a.secOpts.KeyFilePath = constants.WorkloadIdentityKeyPath
@@ -423,7 +423,7 @@ func (a *Agent) Run(ctx context.Context) (func(), error) {
 				return nil, fmt.Errorf("failed to start workload secret manager %v", err)
 			}
 		} else {
-			log.Info("workload identity cert files not found, create secret manager with caClient")
+			log.Info("workload identity cert files not found, creating secret manager with the caClient")
 			a.secretCache, err = a.newSecretManager()
 			if err != nil {
 				return nil, fmt.Errorf("failed to start workload secret manager %v", err)
