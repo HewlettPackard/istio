@@ -616,6 +616,8 @@ data:
               {{ end }}
               {{- end }}
           volumes:
+          - emptyDir:
+            name: workload-identity
           {{- if eq .Values.global.caName "GkeWorkloadCertificate" }}
           - name: gke-workload-certificate
             csi:
@@ -822,6 +824,8 @@ data:
               timeoutSeconds: 3
               failureThreshold: {{ .Values.global.proxy.readinessFailureThreshold }}
             volumeMounts:
+            - name: workload-identity
+              mountPath: /var/run/secrets/workload-identity
             {{- if eq .Values.global.caName "GkeWorkloadCertificate" }}
             - name: gke-workload-certificate
               mountPath: /var/run/secrets/workload-spiffe-credentials

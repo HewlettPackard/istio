@@ -225,6 +225,8 @@ spec:
           - name: ISTIO_META_CLUSTER_ID
             value: "{{ $.Values.global.multiCluster.clusterName | default `Kubernetes` }}"
           volumeMounts:
+          - name: workload-identity
+            mountPath: /var/run/secrets/workload-identity
           - name: istio-envoy
             mountPath: /etc/istio/proxy
           - name: config-volume
@@ -264,6 +266,8 @@ spec:
 {{ toYaml $gateway.additionalContainers | indent 8 }}
 {{- end }}
       volumes:
+      - emptyDir:
+        name: workload-identity
 {{- if eq .Values.global.pilotCertProvider "istiod" }}
       - name: istiod-ca-cert
         configMap:
