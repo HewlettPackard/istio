@@ -354,7 +354,7 @@
               "endpoint": {
                 "address":{
                   "pipe": {
-                    "path": "/tmp/bootstrap/runningsds/SDS"
+                    "path": "./var/run/secrets/workload-identity/socket"
                   }
                 }
               }

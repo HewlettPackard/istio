@@ -349,7 +349,7 @@
               "endpoint": {
                 "address":{
                   "pipe": {
-                    "path": "/tmp/bootstrap/tracing_opencensusagent/SDS"
+                    "path": "./var/run/secrets/workload-identity/socket"
                   }
                 }
               }
