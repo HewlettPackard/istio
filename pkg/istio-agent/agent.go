@@ -405,9 +405,9 @@ func (a *Agent) Run(ctx context.Context) (func(), error) {
 
 	sdsSocketExists := socketFileExists(constants.WorkloadIdentitySocketPath)
 	if sdsSocketExists {
-		log.Info("master branch: SDS socket detected, don't start SDS Server")
+		log.Info("SDS socket detected, don't start SDS Server")
 	} else {
-		log.Info("master branch: SDS socket not detected, starting owned SDS Server")
+		log.Info("SDS socket not detected, starting owned SDS Server")
 
 		rootCertExists := fileExists(constants.WorkloadIdentityRootCertPath)
 		certChainExists := fileExists(constants.WorkloadIdentityCertChainPath)
