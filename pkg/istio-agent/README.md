@@ -14,15 +14,15 @@ requests to the agent, which will be forwarded to the configured discovery serve
 
 ## CA Flow
 
-istio-agent checks the presence of a socket file on the well-known path `/var/run/secrets/workload-spiffe-uds/socket`
+istio-agent checks the presence of a socket file on the defined **socket path** `/var/run/secrets/workload-spiffe-uds/socket`.
 
-1. In the case where the socket exists, istio-agent does not start its own SDS Server.
-2. In the case where the socket does not exist, istio-agent checks whether the certificate files are present on the well-known path folder `/var/run/secrets/workload-spiffe-credentials`.
-   If the certificate files exist, istio-agent starts its own SDS Server, listening on the fixed socket path `/var/run/secrets/workload-spiffe-uds/socket`;
-   to serve those certificate files, keeping file watchers on them. Envoy proxy connects to the SDS Server run by istio-agent
-   through the fixed socket path and gets the cryptographic materials of the certificate files served by the SDS API.
-3. In case istio-agent does not find either the socket, or the certificate files in the fixed path
-   it starts its own SDS Server using a `caClient` to connect to istiod to get the cryptographic materials (See Default CA Flow).
+1. If a socket is found, istio-agent will not start its own SDS Server and Envoy will be configured to use that socket as its source of cryptographic material.
+2. If a socket is not found, istio-agent then checks whether certificate files are present or not on the defined certificate path `/var/run/secrets/workload-spiffe-credentials`. 
+   If certificate files are found, istio-agent will start its own SDS Server, listening and serving these certificates on the defined socket path `/var/run/secrets/workload-spiffe-uds/socket`,
+   while also keeping file watchers on them. Envoy proxy then connects to istio-agent's SDS Server
+   through the defined socket path and gets the cryptographic materials of the certificate files served by the SDS API.
+3. If istio-agent does not find either the socket, or the certificate files in their respective paths
+   it will start its own SDS Server using a `caClient` to connect to istiod and to fetch cryptographic materials (See Default CA Flow).
 
 ![SDS decision flow](docs/sds-flow.svg)
 
