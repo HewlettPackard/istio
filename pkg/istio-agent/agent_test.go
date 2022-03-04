@@ -267,9 +267,9 @@ func TestAgent(t *testing.T) {
 		copyCerts(t, dir)
 
 		secOpts := &security.Options{}
-		secOpts.RootCertFilePath = dir + "/root-cert.pem"
-		secOpts.CertChainFilePath = dir + "/cert-chain.pem"
-		secOpts.KeyFilePath = dir + "/key.pem"
+		secOpts.RootCertFilePath = filepath.Join(dir, "/root-cert.pem")
+		secOpts.CertChainFilePath = filepath.Join(dir, "/cert-chain.pem")
+		secOpts.KeyFilePath = filepath.Join(dir, "/key.pem")
 
 		secretCache, err := cache.NewSecretManagerClient(nil, secOpts)
 		if err != nil {

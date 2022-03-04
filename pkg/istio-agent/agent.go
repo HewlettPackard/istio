@@ -406,7 +406,7 @@ func (a *Agent) Run(ctx context.Context) (func(), error) {
 	}
 
 	if socketFileExists(security.WorkloadIdentitySocketPath) {
-		log.Info("SDS socket detected, don't start own SDS Server")
+		log.Info("SDS socket found. Istio SDS Server won't be started")
 	} else {
 		if security.CheckWorkloadCertificate(security.WorkloadIdentityCertChainPath, security.WorkloadIdentityKeyPath, security.WorkloadIdentityRootCertPath) {
 			log.Info("workload certificate files detected, creating secret manager without caClient")
@@ -425,7 +425,7 @@ func (a *Agent) Run(ctx context.Context) (func(), error) {
 			}
 		}
 
-		log.Info("SDS socket not detected, starting own SDS Server")
+		log.Info("SDS socket not found. Starting Istio SDS Server")
 		a.sdsServer = sds.NewServer(a.secOpts, a.secretCache)
 		a.secretCache.SetUpdateCallback(a.sdsServer.UpdateCallback)
 	}
