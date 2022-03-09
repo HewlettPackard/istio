@@ -1,44 +1,59 @@
-# Integrating SPIRE through Envoy SDS
+# Integrating SPIRE as a CA through Envoy's SDS API
 
-There are currently multiple forms of integrating third-party Certificate Authorities (CA) whitin Istio. This example deploys a setup of [SPIRE](https://github.com/spiffe/spire) (the SPIFFE Runtime Environment) as an Exernal CA, through [Envoy's SDS API integration](https://github.com/alexandrealvino/istio.io/blob/6eff1cd45dfce244978cafc10a88f7620c0438fc/content/en/docs/ops/integrations/spire/index.md).
+Further details about this integration can be found [here](https://istio.io/latest/docs/ops/integrations/spire).
 
-To assist this deployment, two additional components will be shipped together with SPIRE, the [CSI Driver](https://github.com/spiffe/spiffe-csi) and the [Kubernetes Workload Registrar](https://github.com/spiffe/spire/tree/main/support/k8s/k8s-workload-registrar).
+This sample deploys a setup of [SPIRE](https://github.com/spiffe/spire) (the SPIFFE Runtime Environment) as an example of [Envoy's SDS](https://www.envoyproxy.io/docs/envoy/latest/configuration/security/secret) API integration in Istio. For more information
+on SPIFFE and SPIRE specs, refer to the [SPIFFE Overview](https://spiffe.io/docs/latest/spiffe-about/overview/).
 
-The desired behaviour will get triggered during istio-agent bootstrap, in case a socket file under `/var/run/secrets/workload-spiffe-uds/socket` is detected. This tells istio-agent **not** to start its own SDS server, but to use the one provided via socket.
-
+Once SPIRE is deployed and integrated with Istio, we will use a modified version of the [sleep](/samples/sleep/README.md) service and validate that its [identity](https://spiffe.io/docs/latest/spiffe-about/spiffe-concepts/#spiffe-verifiable-identity-document-svid) did come from SPIRE. 
 
 ## Usage
 
-1. Deploy Spire:
+1. Deploy SPIRE. For proper socket injection, this **must** be done prior to installing Istio in your cluster:
 
     ```bash
-    kubectl apply -f spire.yaml
+    $ kubectl apply -f spire-quickstart.yaml
     ```
 
-2. Wait until the deployment is completed. This can be verified by waiting on the `spire-agent` pod to become ready:
+2. Ensure that the deployment is completed until moving to the next step. 
+
+    This can be verified by waiting on the `spire-agent` pod to become ready:
 
     ```bash
-    export SPIRE_POD=$(kubectl get pod -n spire -l app=spire-agent -o jsonpath="{.items[0].metadata.name}")
-    kubectl wait --for=condition=ready pod -n spire $SPIRE_POD
+    $ kubectl wait pod --for=condition=ready -n spire -l app=spire-agent
     ```
 
-3. Apply the configuration profile provided to install istio:
+3. Use the configuration profile provided to install Istio:
 
     ```
-    istioctl install -f profile.yaml
+    $ istioctl install -f istio-config.yaml
     ```
 
-4. Deploy [Sleep](/samples/sleep/README.md), or any other service of your preference. Here, Sleep will only be used to validate that its identity was issued by SPIRE. 
+4. Deploy the modified version of [sleep](/samples/sleep/README.md) that injects the custom istio-agent template.
 
-5. Retrieve the certificate data issued for sleep service:
+    If you have [automatic sidecar injection](https://istio.io/docs/setup/additional-setup/sidecar-injection/#automatic-sidecar-injection) enabled:
+
+    ```
+    $ kubectl apply -f sleep.yaml
+    ```
+
+    Otherwise manually inject the sidecars before applying:
 
     ```bash
-    export SLEEP_POD=$(kubectl get pod -l app=sleep -o jsonpath="{.items[0].metadata.name}")
-    istioctl pc secret $SLEEP_POD -o json | jq -r '.dynamicActiveSecrets[0].secret.tlsCertificate.certificateChain.inlineBytes' | base64 --decode > chain.pem
+    $ kubectl apply -f <(istioctl kube-inject -f sleep.yaml)
+    ```
+
+
+5. Retrieve the sleep's SVID through `istioctl proxy-config secret` command:
+
+    ```bash
+    $ export SLEEP_POD=$(kubectl get pod -l app=sleep -o jsonpath="{.items[0].metadata.name}")
+    $ istioctl pc secret $SLEEP_POD -o json | jq -r '.dynamicActiveSecrets[0].secret.tlsCertificate.certificateChain.inlineBytes' | base64 --decode > chain.pem
     ```
 
 5. Inspect the certificate and verify that SPIRE is the issuer:
 
     ```bash
-    openssl x509 -in chain.pem -text | grep SPIRE
+    $ openssl x509 -in chain.pem -text | grep SPIRE
+        Subject: C = US, O = SPIRE, CN = sleep-5d6df95bbf-kt2tt
     ```
