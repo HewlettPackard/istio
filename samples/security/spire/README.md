@@ -44,7 +44,7 @@ Once SPIRE is deployed and integrated with Istio, we will use a modified version
     ```
 
 
-5. Retrieve the sleep's SVID through `istioctl proxy-config secret` command:
+5. Retrieve sleep's SVID through `istioctl proxy-config secret` command:
 
     ```bash
     $ export SLEEP_POD=$(kubectl get pod -l app=sleep -o jsonpath="{.items[0].metadata.name}")
@@ -56,4 +56,19 @@ Once SPIRE is deployed and integrated with Istio, we will use a modified version
     ```bash
     $ openssl x509 -in chain.pem -text | grep SPIRE
         Subject: C = US, O = SPIRE, CN = sleep-5d6df95bbf-kt2tt
+    ```
+
+## Tear down
+
+1.  Delete all deployments and configurations for the agent, server, and namespace:
+    
+    ```bash
+    $ kubectl delete namespace spire
+    ```
+
+1.  Delete the ClusterRole and ClusterRoleBinding:
+    
+    ```bash
+    $ kubectl delete clusterrole spire-server-trust-role spire-agent-cluster-role
+    $ kubectl delete clusterrolebinding spire-server-trust-role-binding spire-agent-cluster-role-binding
     ```
