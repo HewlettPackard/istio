@@ -15,7 +15,7 @@ import (
 	"istio.io/pkg/log"
 )
 
-// SpiffeSecretManager is a source of SecretItems (X.509 SVIDs and trust bundles) maintained via the
+// SpiffeSecretManager is source of SecretItems (X.509 SVIDs and trust bundles) maintained via the
 // Workload API. Implements the
 type SpiffeSecretManager struct {
 	sync.RWMutex
