@@ -19,6 +19,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"istio.io/istio/pkg/spiffe"
 	"os"
 	"path"
 	"strings"
@@ -301,5 +302,55 @@ func (s *Server) loadIstiodCert() error {
 	s.certMu.Lock()
 	s.istiodCert = &keyPair
 	s.certMu.Unlock()
+	return nil
+}
+
+// init istiod certificates watches on the SPIFFE Workload API socket
+func (s *Server) initCertificatesWatchesOnSocket() error {
+	err := s.setAndNotifyIstiodCertBundleWatcher()
+	if err != nil {
+		return err
+	}
+
+	s.addStartFunc(func(stop <-chan struct{}) error {
+		updatedChan := s.x509Source.UpdatedChan()
+		go s.watchCertificateUpdatesOnSocket(updatedChan, stop)
+		return nil
+	})
+
+	return nil
+}
+
+func (s *Server) watchCertificateUpdatesOnSocket(watchCh <-chan struct{}, stopCh <-chan struct{}) {
+	for {
+		select {
+		case <-stopCh:
+			return
+		case <-watchCh:
+			log.Info("certificates update received from socket")
+
+			err := s.setAndNotifyIstiodCertBundleWatcher()
+			if err != nil {
+				log.Errorf("error setting and notifying bundle watcher: %v", err)
+			}
+		}
+	}
+}
+
+func (s *Server) setAndNotifyIstiodCertBundleWatcher() error {
+	certChain, key, err := s.x509Source.GetCertificateChainAndKey()
+	if err != nil {
+		return fmt.Errorf("error getting certificates from SPIFFE X.509 Source: %v", err)
+	}
+
+	caBundle, err := s.x509Source.GetCaBundlePEMForTrustDomain(spiffe.GetTrustDomain())
+	if err != nil {
+		return fmt.Errorf("error getting ca bundle from SPIFFE X.509 Source: %v", err)
+	}
+
+	s.istiodCertBundleWatcher.SetAndNotify(key, certChain, caBundle)
+
+	log.Infof("istiod cert chain: \n %s", certChain)
+
 	return nil
 }

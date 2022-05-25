@@ -179,6 +179,8 @@ spec:
               drop:
               - ALL
           volumeMounts:
+          - name: workload-socket
+            mountPath: /var/run/secrets/workload-spiffe-uds
           {{- if eq .Values.global.jwtPolicy "third-party-jwt" }}
           - name: istio-token
             mountPath: /var/run/secrets/tokens
@@ -197,6 +199,8 @@ spec:
             mountPath: /cacerts
           {{- end }}
       volumes:
+      - emptyDir: {}
+        name: workload-socket
       # Technically not needed on this pod - but it helps debugging/testing SDS
       # Should be removed after everything works.
       - emptyDir:

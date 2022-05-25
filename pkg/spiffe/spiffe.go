@@ -20,9 +20,14 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
+	"golang.org/x/net/context"
 	"net"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -61,6 +66,113 @@ type Identity struct {
 	TrustDomain    string
 	Namespace      string
 	ServiceAccount string
+}
+
+// X509Source wraps a SPIFFE workloadapi.X509Source providing convenience methods.
+// A workloadapi.X509Source is a source of SPIFFE X.509 certs and X.509 bundles maintained via the
+// SPIFFE Workload API.
+type X509Source struct {
+	x509Source *workloadapi.X509Source
+}
+
+// NewX509Source creates a new X509Source that is a source of SPIFFE X.509 certs and X.509 bundles
+// maintained via the SPIFFE Workload API.
+func NewX509Source(ctx context.Context, socketPath string) (*X509Source, error) {
+	socketAddr, err := normalizeSocketPath(socketPath)
+	if err != nil {
+		return nil, err
+	}
+	x509Source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(workloadapi.WithAddr(socketAddr)))
+	if err != nil {
+		return nil, fmt.Errorf("failed creating spiffe X.509 source: %v", err)
+	}
+
+	return &X509Source{x509Source: x509Source}, nil
+}
+
+// GetCertificateChainAndKey returns the certificate chain and private key as PEM encoded blocks.
+func (x *X509Source) GetCertificateChainAndKey() ([]byte, []byte, error) {
+	svid, err := x.x509Source.GetX509SVID()
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed fetching X.509 SVID from UDS socket: %v", err)
+	}
+
+	certChain, key, err := svid.Marshal()
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to marshal X.509 SVID: %v", err)
+	}
+
+	return certChain, key, nil
+}
+
+// GetCaBundleForTrustDomain returns the CA bundle for the given trust domain.
+func (x *X509Source) GetCaBundleForTrustDomain(td string) (*x509bundle.Bundle, error) {
+	trustDomain, err := spiffeid.TrustDomainFromString(td)
+	if err != nil {
+		return nil, fmt.Errorf("error trying to parse trust domain %q reason: %v", td, err)
+	}
+
+	bundle, err := x.x509Source.GetX509BundleForTrustDomain(trustDomain)
+	if err != nil {
+		return nil, fmt.Errorf("unable to find X.509 bundle for trust domain %q: %v", trustDomain, err)
+	}
+
+	return bundle, nil
+}
+
+// GetCaBundlePEMForTrustDomain returns the CA bundle as PEM encoded blocks for the given trust domain.
+func (x *X509Source) GetCaBundlePEMForTrustDomain(td string) ([]byte, error) {
+	bundle, err := x.GetCaBundleForTrustDomain(td)
+	if err != nil {
+		return nil, err
+	}
+
+	bundleBytes, err := bundle.Marshal()
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal X.509 byndle: %v", err)
+	}
+	return bundleBytes, nil
+}
+
+// UpdatedChan returns a channel that is sent on whenever the source is updated.
+func (x *X509Source) UpdatedChan() <-chan struct{} {
+	return x.x509Source.Updated()
+}
+
+// Close closes the source, dropping the connection to the Workload API.
+// Other source methods will return an error after Close has been called.
+func (x *X509Source) Close() error {
+	return x.x509Source.Close()
+}
+
+// WatchX509Bundles keeps watching X.509 CA bundles from the SPIFFE Workload API.
+func WatchX509Bundles(ctx context.Context, socketPath string, bundleWatcher workloadapi.X509BundleWatcher) error {
+	socketAddr, err := normalizeSocketPath(socketPath)
+	if err != nil {
+		return err
+	}
+	err = workloadapi.WatchX509Bundles(ctx, bundleWatcher, workloadapi.WithAddr(socketAddr))
+	if err != nil {
+		return fmt.Errorf("failed starting X.509 bundle watcher: %v", err)
+	}
+	return nil
+}
+
+// Normalizes a socket path making it absolute and adding the unix:// prefix if missing.
+// Note: go-spiffe library doesn't accept relative socket paths nor paths without unix:// prefix.
+func normalizeSocketPath(socketPath string) (string, error) {
+	abs, err := filepath.Abs(socketPath)
+	if err != nil {
+		return "", fmt.Errorf("failed converting socket path to absolute: %v", err)
+	}
+
+	if strings.HasPrefix(abs, "unix://") {
+		return abs, nil
+	}
+
+	socketAddr := fmt.Sprintf("unix://%s", abs)
+	return socketAddr, nil
 }
 
 func ParseIdentity(s string) (Identity, error) {
