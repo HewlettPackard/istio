@@ -21,6 +21,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"net"
 	"net/http"
 	"os"
@@ -173,6 +175,10 @@ type Server struct {
 	statusManager  *status.Manager
 	// RWConfigStore is the configstore which allows updates, particularly for status.
 	RWConfigStore model.ConfigStoreController
+
+	// x509Source is a source of SPIFFE X.509 certs and X.509 bundles maintained via the SPIFFE Workload API.
+	// It's used when the PilotCertProvider is configured to 'socket'.
+	x509Source *spiffe.X509Source
 }
 
 // NewServer creates a new Server instance based on the provided arguments.
@@ -205,6 +211,13 @@ func NewServer(args *PilotArgs, initFuncs ...func(*Server)) (*Server, error) {
 	for _, fn := range initFuncs {
 		fn(s)
 	}
+
+	if features.PilotCertProvider == constants.CertProviderSocket {
+		if err := s.setX509Source(); err != nil {
+			return nil, fmt.Errorf("failed setting SPIFFE X.509 Source on istiod Server: %v", err)
+		}
+	}
+
 	// Initialize workload Trust Bundle before XDS Server
 	e.TrustBundle = s.workloadTrustBundle
 	s.XDSServer = xds.NewDiscoveryServer(e, args.PodName, args.RegistryOptions.KubeOptions.ClusterAliases)
@@ -350,6 +363,17 @@ func NewServer(args *PilotArgs, initFuncs ...func(*Server)) (*Server, error) {
 	})
 
 	return s, nil
+}
+
+func (s *Server) setX509Source() error {
+	ctx := context.Background()
+	x509Source, err := spiffe.NewX509Source(ctx, security.WorkloadIdentitySocketPath)
+	if err != nil {
+		return err
+	}
+
+	s.x509Source = x509Source
+	return nil
 }
 
 func initOIDC(args *PilotArgs, trustDomain string) (security.Authenticator, error) {
@@ -712,6 +736,12 @@ func (s *Server) waitForShutdown(stop <-chan struct{}) {
 
 		// Shutdown the DiscoveryServer.
 		s.XDSServer.Shutdown()
+
+		if s.x509Source != nil {
+			if err := s.x509Source.Close(); err != nil {
+				log.Warn(err)
+			}
+		}
 	}()
 }
 
@@ -983,6 +1013,12 @@ func (s *Server) initIstiodCerts(args *PilotArgs, host string) error {
 			return nil
 		}
 		err = s.initIstiodCertLoader()
+	} else if features.PilotCertProvider == constants.CertProviderSocket {
+		log.Infof("using external socket to get Istiod certificates")
+		err = s.initCertificatesWatchesOnSocket()
+		if err == nil {
+			err = s.initIstiodCertLoader()
+		}
 	} else if features.PilotCertProvider == constants.CertProviderNone {
 		return nil
 	} else if s.EnableCA() && features.PilotCertProvider == constants.CertProviderIstiod {
@@ -1010,7 +1046,7 @@ func (s *Server) initIstiodCerts(args *PilotArgs, host string) error {
 
 // createPeerCertVerifier creates a SPIFFE certificate verifier with the current istiod configuration.
 func (s *Server) createPeerCertVerifier(tlsOptions TLSOptions) (*spiffe.PeerCertVerifier, error) {
-	if tlsOptions.CaCertFile == "" && s.CA == nil && features.SpiffeBundleEndpoints == "" && !s.isDisableCa() {
+	if tlsOptions.CaCertFile == "" && s.CA == nil && features.SpiffeBundleEndpoints == "" && !s.isDisableCa() && features.PilotCertProvider != constants.CertProviderSocket {
 		// Running locally without configured certs - no TLS mode
 		return nil, nil
 	}
@@ -1052,7 +1088,59 @@ func (s *Server) createPeerCertVerifier(tlsOptions TLSOptions) (*spiffe.PeerCert
 		peerCertVerifier.AddMappings(certMap)
 	}
 
+	if features.PilotCertProvider == constants.CertProviderSocket {
+		caBundle, err := s.x509Source.GetCaBundleForTrustDomain(spiffe.GetTrustDomain())
+		if err != nil {
+			return nil, fmt.Errorf("error gettting CA Bundle for trust domain %v: %v", spiffe.GetTrustDomain(), err)
+		}
+
+		peerCertVerifier.AddMapping(spiffe.GetTrustDomain(), caBundle.X509Authorities())
+
+		// start watcher to keep receiving X.509 bundle updates and add them to the peerCertVerifier
+		s.addStartFunc(func(stop <-chan struct{}) error {
+			go func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				watcher := bundleWatcher{peerCertVerifier}
+				err := spiffe.WatchX509Bundles(ctx, security.WorkloadIdentitySocketPath, watcher)
+				if err != nil {
+					log.Errorf("error starting X.509 Bundle watcher for Pilot: %v", err)
+				}
+				<-stop
+			}()
+			return nil
+		})
+	}
+
 	return peerCertVerifier, nil
+}
+
+// implements workloadapi.X509BundleWatcher interface.
+type bundleWatcher struct {
+	peerCertVerifier *spiffe.PeerCertVerifier
+}
+
+// OnX509BundlesUpdate gets the X.509 bundle updates and adds them to the peerCertVerifier.
+func (b bundleWatcher) OnX509BundlesUpdate(s *x509bundle.Set) {
+	td, err := spiffeid.TrustDomainFromString(spiffe.GetTrustDomain())
+	if err != nil {
+		log.Errorf("error trying to parse trust domain %q reason: %v", td, err)
+		return
+	}
+
+	bundle, err := s.GetX509BundleForTrustDomain(td)
+	if err != nil {
+		log.Errorf("unable to find X.509 bundle for trust domain %q: %v", td, err)
+		return
+	}
+
+	b.peerCertVerifier.AddMapping(spiffe.GetTrustDomain(), bundle.X509Authorities())
+
+	log.Info("new CA bundles added to peerCertVerifier")
+}
+
+func (b bundleWatcher) OnX509BundlesWatchError(e error) {
+	log.Errorf("error receiving the new CA bundles: %v", e)
 }
 
 // hasCustomTLSCerts returns true if custom TLS certificates are configured via args.

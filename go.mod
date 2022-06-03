@@ -64,6 +64,7 @@ require (
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.11.0
+	github.com/spiffe/go-spiffe/v2 v2.1.0
 	github.com/vishvananda/netlink v1.2.0-beta
 	github.com/yl2chen/cidranger v1.0.2
 	go.opencensus.io v0.23.0
@@ -117,6 +118,7 @@ require (
 	github.com/MakeNowJust/heredoc v0.0.0-20170808103936-bb23615498cd // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.1.1 // indirect
+	github.com/Microsoft/go-winio v0.5.2 // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/VividCortex/ewma v1.1.1 // indirect
@@ -227,6 +229,7 @@ require (
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/xlab/treeprint v1.1.0 // indirect
+	github.com/zeebo/errs v1.2.2 // indirect
 	go.starlark.net v0.0.0-20211013185944-b0039bd2cfe3 // indirect
 	go.uber.org/zap v1.21.0 // indirect
 	golang.org/x/crypto v0.0.0-20220427172511-eb4f295cb31f // indirect

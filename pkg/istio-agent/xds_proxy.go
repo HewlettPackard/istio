@@ -677,14 +677,25 @@ func (p *XdsProxy) getTLSDialOption(agent *Agent) (grpc.DialOption, error) {
 	config := tls.Config{
 		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
 			var certificate tls.Certificate
-			key, cert := agent.GetKeyCertsForXDS()
-			if key != "" && cert != "" {
-				// Load the certificate from disk
-				certificate, err = tls.LoadX509KeyPair(cert, key)
+
+			// when the PilotCertProvider is the socket, use the certs fetched from the SPIFFE Workload API
+			// to do mTLS with istiod
+			if agent.secOpts.PilotCertProvider == constants.CertProviderSocket {
+				certificate, err = p.getTlsCertificateFromX509Source(agent)
 				if err != nil {
 					return nil, err
 				}
+			} else {
+				key, cert := agent.GetKeyCertsForXDS()
+				if key != "" && cert != "" {
+					// Load the certificate from disk
+					certificate, err = tls.LoadX509KeyPair(cert, key)
+					if err != nil {
+						return nil, err
+					}
+				}
 			}
+
 			return &certificate, nil
 		},
 		RootCAs: rootCert,
@@ -710,6 +721,20 @@ func (p *XdsProxy) getTLSDialOption(agent *Agent) (grpc.DialOption, error) {
 	return grpc.WithTransportCredentials(transportCreds), nil
 }
 
+func (p *XdsProxy) getTlsCertificateFromX509Source(agent *Agent) (tls.Certificate, error) {
+	certPem, keyPem, err := agent.x509Source.GetCertificateChainAndKey()
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+
+	certificate, err := tls.X509KeyPair(certPem, keyPem)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+
+	return certificate, nil
+}
+
 func (p *XdsProxy) getRootCertificate(agent *Agent) (*x509.CertPool, error) {
 	var certPool *x509.CertPool
 	var rootCert []byte
@@ -730,6 +755,19 @@ func (p *XdsProxy) getRootCertificate(agent *Agent) (*x509.CertPool, error) {
 		if !ok {
 			return nil, fmt.Errorf("failed to create TLS dial option with root certificates")
 		}
+	} else if agent.secOpts.PilotCertProvider == constants.CertProviderSocket {
+		caBundle, err := agent.x509Source.GetCaBundlePEMForTrustDomain(agent.secOpts.TrustDomain)
+		if err != nil {
+			return nil, fmt.Errorf("error getting ca bundle from socket: %v", err)
+		}
+
+		certPool = x509.NewCertPool()
+		ok := certPool.AppendCertsFromPEM(caBundle)
+		if !ok {
+			return nil, fmt.Errorf("failed to create TLS dial option with root certificates")
+		}
+
+		return certPool, nil
 	} else {
 		certPool, err = x509.SystemCertPool()
 		if err != nil {

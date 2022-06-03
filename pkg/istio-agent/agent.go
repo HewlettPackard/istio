@@ -34,8 +34,8 @@ import (
 	"github.com/golang/protobuf/proto"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 
+	"google.golang.org/grpc/credentials/insecure"
 	mesh "istio.io/api/mesh/v1alpha1"
 	"istio.io/istio/pilot/cmd/pilot-agent/config"
 	"istio.io/istio/pilot/cmd/pilot-agent/status/ready"
@@ -49,6 +49,7 @@ import (
 	"istio.io/istio/pkg/envoy"
 	"istio.io/istio/pkg/istio-agent/grpcxds"
 	"istio.io/istio/pkg/security"
+	"istio.io/istio/pkg/spiffe"
 	"istio.io/istio/pkg/util/protomarshal"
 	"istio.io/istio/security/pkg/nodeagent/cache"
 	"istio.io/istio/security/pkg/nodeagent/caclient"
@@ -128,6 +129,10 @@ type Agent struct {
 
 	// Signals true completion (e.g. with delayed graceful termination of Envoy)
 	wg sync.WaitGroup
+
+	// x509Source is a source of SPIFFE X.509 certs and X.509 bundles maintained via the SPIFFE Workload API.
+	// It's used when the PilotCertProvider is configured to 'socket'.
+	x509Source *spiffe.X509Source
 }
 
 // AgentOptions contains additional config for the agent, not included in ProxyConfig.
@@ -237,7 +242,7 @@ func (a *Agent) generateNodeMetadata() (*model.Node, error) {
 		return nil, fmt.Errorf("failed to find root CA cert for XDS: %v", err)
 	}
 
-	if provCert == "" {
+	if provCert == "" && a.secOpts.PilotCertProvider != constants.CertProviderSocket {
 		// Envoy only supports load from file. If we want to use system certs, use best guess
 		// To be more correct this could lookup all the "well known" paths but this is extremely \
 		// unlikely to run on a non-debian based machine, and if it is it can be explicitly configured
@@ -430,6 +435,12 @@ func (a *Agent) Run(ctx context.Context) (func(), error) {
 		}
 	}
 
+	if a.secOpts.PilotCertProvider == constants.CertProviderSocket {
+		if err := a.setX509Source(ctx); err != nil {
+			return nil, fmt.Errorf("error setting SPIFFE X.509 Source on Agent: %v", err)
+		}
+	}
+
 	a.xdsProxy, err = initXdsProxy(a)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start xds proxy: %v", err)
@@ -491,6 +502,16 @@ func (a *Agent) Run(ctx context.Context) (func(), error) {
 		}()
 	}
 	return a.wg.Wait, nil
+}
+
+func (a *Agent) setX509Source(ctx context.Context) error {
+	x509Source, err := spiffe.NewX509Source(ctx, security.WorkloadIdentitySocketPath)
+	if err != nil {
+		return err
+	}
+
+	a.x509Source = x509Source
+	return nil
 }
 
 func (a *Agent) initSdsServer() error {
@@ -668,6 +689,11 @@ func (a *Agent) close() {
 	if a.caFileWatcher != nil {
 		_ = a.caFileWatcher.Close()
 	}
+	if a.x509Source != nil {
+		if err := a.x509Source.Close(); err != nil {
+			log.Warnf("Error closing SPIFFE X.509 source: %v", err)
+		}
+	}
 }
 
 // FindRootCAForXDS determines the root CA to be configured in bootstrap file.
@@ -702,6 +728,9 @@ func (a *Agent) FindRootCAForXDS() (string, error) {
 		rootCAPath = a.proxyConfig.ProxyMetadata[MetadataClientRootCert]
 	} else if a.secOpts.PilotCertProvider == constants.CertProviderNone {
 		return "", fmt.Errorf("root CA file for XDS required but configured provider as none")
+	} else if a.secOpts.PilotCertProvider == constants.CertProviderSocket {
+		// returns empty path and no error as the RootCA for XDS will be fetched from the socket
+		return "", nil
 	} else {
 		// PILOT_CERT_PROVIDER - default is istiod
 		// This is the default - a mounted config map on K8S
