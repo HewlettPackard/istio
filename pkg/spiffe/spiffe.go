@@ -159,7 +159,7 @@ func WatchX509Bundles(ctx context.Context, socketPath string, bundleWatcher work
 	return nil
 }
 
-// Normalizes a socket path making it absolute and adding the unix:// prefix if missing.
+// Normalizes a socket path by making it absolute and adding the unix:// prefix if missing.
 // Note: go-spiffe library doesn't accept relative socket paths nor paths without unix:// prefix.
 func normalizeSocketPath(socketPath string) (string, error) {
 	abs, err := filepath.Abs(socketPath)
