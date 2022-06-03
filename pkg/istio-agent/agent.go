@@ -436,8 +436,7 @@ func (a *Agent) Run(ctx context.Context) (func(), error) {
 	}
 
 	if a.secOpts.PilotCertProvider == constants.CertProviderSocket {
-		err := a.setX509Source(ctx)
-		if err != nil {
+		if err := a.setX509Source(ctx); err != nil {
 			return nil, fmt.Errorf("error setting SPIFFE X.509 Source on Agent: %v", err)
 		}
 	}
@@ -692,7 +691,7 @@ func (a *Agent) close() {
 	}
 	if a.x509Source != nil {
 		if err := a.x509Source.Close(); err != nil {
-			log.Warn(err)
+			log.Warnf("Error closing SPIFFE X.509 source: %v", err)
 		}
 	}
 }

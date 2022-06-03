@@ -110,7 +110,7 @@ func (x *X509Source) GetCertificateChainAndKey() ([]byte, []byte, error) {
 func (x *X509Source) GetCaBundleForTrustDomain(td string) (*x509bundle.Bundle, error) {
 	trustDomain, err := spiffeid.TrustDomainFromString(td)
 	if err != nil {
-		return nil, fmt.Errorf("error trying to parse trust domain %q reason: %v", td, err)
+		return nil, fmt.Errorf("error trying to parse trust domain %q: %v", td, err)
 	}
 
 	bundle, err := x.x509Source.GetX509BundleForTrustDomain(trustDomain)
@@ -130,7 +130,7 @@ func (x *X509Source) GetCaBundlePEMForTrustDomain(td string) ([]byte, error) {
 
 	bundleBytes, err := bundle.Marshal()
 	if err != nil {
-		return nil, fmt.Errorf("unable to marshal X.509 byndle: %v", err)
+		return nil, fmt.Errorf("unable to marshal X.509 bundle: %v", err)
 	}
 	return bundleBytes, nil
 }

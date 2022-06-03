@@ -213,8 +213,7 @@ func NewServer(args *PilotArgs, initFuncs ...func(*Server)) (*Server, error) {
 	}
 
 	if features.PilotCertProvider == constants.CertProviderSocket {
-		err := s.setX509Source()
-		if err != nil {
+		if err := s.setX509Source(); err != nil {
 			return nil, fmt.Errorf("failed setting SPIFFE X.509 Source on istiod Server: %v", err)
 		}
 	}
@@ -1126,11 +1125,13 @@ func (b bundleWatcher) OnX509BundlesUpdate(s *x509bundle.Set) {
 	td, err := spiffeid.TrustDomainFromString(spiffe.GetTrustDomain())
 	if err != nil {
 		log.Errorf("error trying to parse trust domain %q reason: %v", td, err)
+		return
 	}
 
 	bundle, err := s.GetX509BundleForTrustDomain(td)
 	if err != nil {
 		log.Errorf("unable to find X.509 bundle for trust domain %q: %v", td, err)
+		return
 	}
 
 	b.peerCertVerifier.AddMapping(spiffe.GetTrustDomain(), bundle.X509Authorities())

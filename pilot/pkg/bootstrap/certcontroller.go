@@ -307,8 +307,7 @@ func (s *Server) loadIstiodCert() error {
 
 // init istiod certificates watches on the SPIFFE Workload API socket
 func (s *Server) initCertificatesWatchesOnSocket() error {
-	err := s.setAndNotifyIstiodCertBundleWatcher()
-	if err != nil {
+	if err := s.setAndNotifyIstiodCertBundleWatcher(); err != nil {
 		return err
 	}
 
@@ -328,9 +327,7 @@ func (s *Server) watchCertificateUpdatesOnSocket(watchCh <-chan struct{}, stopCh
 			return
 		case <-watchCh:
 			log.Info("certificates update received from socket")
-
-			err := s.setAndNotifyIstiodCertBundleWatcher()
-			if err != nil {
+			if err := s.setAndNotifyIstiodCertBundleWatcher(); err != nil {
 				log.Errorf("error setting and notifying bundle watcher: %v", err)
 			}
 		}
@@ -350,7 +347,7 @@ func (s *Server) setAndNotifyIstiodCertBundleWatcher() error {
 
 	s.istiodCertBundleWatcher.SetAndNotify(key, certChain, caBundle)
 
-	log.Infof("istiod cert chain: \n %s", certChain)
+	log.Infof("Istiod cert chain: \n %s", certChain)
 
 	return nil
 }
